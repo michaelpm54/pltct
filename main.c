@@ -236,16 +236,36 @@ void lexer_skip_whitespace(Lexer *l)
 void lexer_get_number(Lexer *l)
 {
 	bool havePoint = false;
+	bool haveNumberAfterPoint = false;
 	do {
 		lexer_advance(l);
-		if (l->c == '.')
+
+		if (isdigit(l->c))
+		{
+			if (havePoint && !haveNumberAfterPoint)
+				haveNumberAfterPoint = true;
+		}
+		else if (l->c == '.')
 		{
 			if (havePoint)
-				lexer_abort(l, STOP_INVALID_NUMBER, "");
+			{
+				puts("NANI");
+				lexer_abort(l, STOP_INVALID_NUMBER, "Multiple decimal points.");
+			}
 			else
 				havePoint = true;
 		}
-	} while (isdigit(l->c) || l->c == '.' && l->stop == STOP_NONE);
+		else if (havePoint && !haveNumberAfterPoint)
+		{
+			puts("NANI");
+			lexer_abort(l, STOP_INVALID_NUMBER, "A digit must follow a decimal point.");
+		}
+		else
+			break;
+
+		if (l->stop != STOP_NONE)
+			break;
+	} while (1);
 }
 
 void lexer_get_token(Lexer *l, Token *t)
