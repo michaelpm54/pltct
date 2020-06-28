@@ -72,8 +72,6 @@ typedef struct Token_s
 
 const char *kKeywords[] =
 {
-	// KEYWORD_BEGIN,
-	// KEYWORD_END,
 	"WHILE",
 	"ENDWHILE",
 	"LET",
