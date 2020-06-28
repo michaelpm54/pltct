@@ -187,8 +187,8 @@ void lexer_init(Lexer *l, const char *filename)
 	l->pos = 0;
 	l->size = 0;
 	l->buf = get_file(filename, &l->size);
-	l->line = 0;
-	l->column = 0;
+	l->line = 1;
+	l->column = 1;
 	if (!l->buf)
 	{
 		lexer_abort(l, STOP_BAD_FILE, "");
@@ -225,7 +225,7 @@ void lexer_get_string(Lexer *l)
 
 void lexer_skip_whitespace(Lexer *l)
 {
-	while (lexer_good(l) && l->pos < l->size && isspace(l->c))
+	while (lexer_good(l) && l->pos < l->size && isspace(l->c) && l->c != '\n')
 	{
 		lexer_advance(l);
 		if (l->c == EOF || l->c == LEXER_EOF)
@@ -267,7 +267,12 @@ void lexer_get_token(Lexer *l, Token *t)
 	else if (isspace(l->c))
 	{
 		if (l->c == '\n')
+		{
 			t->type = TOKEN_NEWLINE;
+			l->line++;
+			l->column = 1;
+			lexer_advance(l);
+		}
 		lexer_skip_whitespace(l);
 	}
 	else if (l->c == '=')
