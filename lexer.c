@@ -48,7 +48,7 @@ bool is_keyword(const char * const text, int len)
 char lexer_peek(Lexer *l)
 {
 	if (l->pos+1 >= l->size)
-		lexer_abort(l, STOP_PEEK_EOF, "");
+		lexer_abort(l, STOP_PEEK_EOF, NULL);
 	return l->buf[l->pos+1];
 }
 
@@ -116,7 +116,7 @@ void lexer_advance(Lexer *l)
 {
 	if (l->pos+1 == l->size || l->buf[l->pos+1] == '\0')
 	{
-		lexer_abort(l, STOP_EOF, "");
+		lexer_abort(l, STOP_EOF, NULL);
 	}
 
 	l->c = l->buf[++l->pos];
@@ -178,7 +178,7 @@ void lexer_skip_whitespace(Lexer *l)
 	{
 		lexer_advance(l);
 		if (l->c == EOF)
-			lexer_abort(l, STOP_EOF, "");
+			lexer_abort(l, STOP_EOF, NULL);
 	}
 }
 
@@ -325,7 +325,7 @@ void lexer_get_token(Lexer *l, Token *t)
 
 	if (t->type == TOKEN_UNKNOWN)
 	{
-		lexer_abort(l, STOP_UNKNOWN_TOKEN, "line %d column %d: '%s'", l->line, l->column, t->text);
+		lexer_abort(l, STOP_UNKNOWN_TOKEN, "%c", l->buf[l->pos-1]);
 	}
 }
 
