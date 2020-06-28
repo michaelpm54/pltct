@@ -1,8 +1,8 @@
 PRINT "How many fibonacci numbers do you want?"
-INPUT nums
+INPUT nums # receive user input
 
 LET a = 0.0
-LET b = 1
+LET b = 0
 WHILE nums > 0 REPEAT
 	PRINT a
 	LET c = a + b

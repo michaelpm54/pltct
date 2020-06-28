@@ -217,6 +217,19 @@ void lexer_get_number(Lexer *l)
 	} while (1);
 }
 
+void lexer_skip_to_newline(Lexer *l)
+{
+	do {
+		lexer_advance(l);
+
+		if (!lexer_good(l))
+			break;
+
+		if (l->c == '\n')
+			break;
+	} while (1);
+}
+
 void lexer_get_token(Lexer *l, Token *t)
 {
 	t->type = TOKEN_NONE;
@@ -295,11 +308,18 @@ void lexer_get_token(Lexer *l, Token *t)
 		t->type = TOKEN_NUMBER;
 		lexer_get_number(l);
 	}
+	else if (l->c == '#')
+	{
+		lexer_skip_to_newline(l);
+	}
 	else
 	{
 		t->type = TOKEN_UNKNOWN;
 		lexer_advance(l);
 	}
+
+	if (t->type == TOKEN_NONE)
+		return;
 
 	int textStart = 0;
 	int textEnd = 0;
@@ -409,10 +429,11 @@ void lexer_enumerate(Lexer *l, FILE *out)
 	fprintf(out, "[\n");
 	for (int i = 0; i < l->numTokens; i++)
 	{
+		Token *t = &l->tokens[i];
+
 		if (i != 0)
 			fprintf(out, "\n");
 
-		Token *t = &l->tokens[i];
 		if (t->text)
 		{
 			if (t->type == TOKEN_NEWLINE)
@@ -440,21 +461,19 @@ int lexer_run(Lexer *l)
 
 	while (lexer_good(l))
 	{
-		Token t;
-		t.type = TOKEN_NONE;
-		t.text = NULL;
-
 		lexer_get_token(l, &l->tokens[l->numTokens]);
-		l->numTokens++;
+
+		if (!lexer_good(l))
+			break;
+
+		if (l->tokens[l->numTokens].type != TOKEN_NONE)
+			l->numTokens++;
 
 		if (l->numTokens == l->maxTokens)
 		{
 			l->tokens = realloc(l->tokens, TOKEN_CHUNK_ALLOC_SIZE * sizeof(Token) * ((l->numTokens / TOKEN_CHUNK_ALLOC_SIZE) + 1));
 			l->maxTokens += TOKEN_CHUNK_ALLOC_SIZE;
 		}
-
-		if (!lexer_good(l))
-			break;
 	}
 
 	if (l->stop != STOP_NONE && l->stop != STOP_EOF)
