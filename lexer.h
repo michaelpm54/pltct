@@ -29,6 +29,12 @@ typedef enum TokenType_s
 	TOKEN_COMPARISON_OPERATORS_END = TOKEN_ASSIGN,
 } TokenType;
 
+typedef struct Token_s
+{
+	TokenType type;
+	char *text;
+} Token;
+
 typedef enum StopReason_e
 {
 	STOP_NONE,
@@ -50,9 +56,14 @@ typedef struct Lexer_s
 	char *errMsg;
 	int line;
 	int column;
+	int numTokens;
+	int maxTokens;
+	Token *tokens;
 } Lexer;
 
 int lexer_init(Lexer *l, const char *filename);
 int lexer_run(Lexer *l);
+void lexer_enumerate(Lexer *l, FILE *out);
+void lexer_free(Lexer *l);
 
 #endif // LEXER_H

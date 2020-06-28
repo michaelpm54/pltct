@@ -3,6 +3,8 @@
 /* TODO:
 	- Assign ascii values to the enum to make comparison faster.
 	- Use unicode instead?
+ 	- Disallow whitespace in strings
+ 	- Ignore comments
 */
 
 #include <stdio.h>
@@ -15,12 +17,7 @@
 #include "lexer.h"
 
 #define ERR_MAX_LEN 128
-
-typedef struct Token_s
-{
-	TokenType type;
-	char *text;
-} Token;
+#define TOKEN_CHUNK_ALLOC_SIZE 40 // number of tokens per allocated chunk
 
 const char * const kKeywords[] =
 {
@@ -72,9 +69,6 @@ char *get_file(const char * const path, long unsigned int *size)
 	fseek(file, 0, SEEK_END);
 	*size = ftell(file);
 	fseek(file, 0, SEEK_SET);
-
-	printf("File path: %s\n", path);
-	printf("File size: %d bytes\n", *size);
 
 	const int MAX_SIZE = 1048576 * 2; // 2 MB
 
@@ -139,6 +133,8 @@ int lexer_init(Lexer *l, const char * const filename)
 	l->buf = get_file(filename, &l->size);
 	l->line = 1;
 	l->column = 1;
+	l->numTokens = 0;
+	l->maxTokens = TOKEN_CHUNK_ALLOC_SIZE;
 
 	if (!l->buf)
 	{
@@ -152,6 +148,7 @@ void lexer_free(Lexer *l)
 	free(l->buf);
 	if (l->errMsg)
 		free(l->errMsg);
+	free(l->tokens);
 }
 
 void lexer_get_string(Lexer *l)
@@ -222,6 +219,9 @@ void lexer_get_number(Lexer *l)
 
 void lexer_get_token(Lexer *l, Token *t)
 {
+	t->type = TOKEN_NONE;
+	t->text = NULL;
+
 	int startPos = l->pos;
 	l->c = l->buf[l->pos];
 
@@ -404,11 +404,39 @@ void lexer_print_error(Lexer *l)
 	free(msg);
 }
 
+void lexer_enumerate(Lexer *l, FILE *out)
+{
+	fprintf(out, "[\n");
+	for (int i = 0; i < l->numTokens; i++)
+	{
+		if (i != 0)
+			fprintf(out, "\n");
+
+		Token *t = &l->tokens[i];
+		if (t->text)
+		{
+			if (t->type == TOKEN_NEWLINE)
+			{
+				fprintf(out, "\t{\n\t\t\"type\": \"%s\",\n\t\t\"id\": %d,\n\t\t\"text\": \"%s\"\n\t}", token_type(t), t->type, "<newline>");
+			}
+			else
+			{
+				fprintf(out, "\t{\n\t\t\"type\": \"%s\",\n\t\t\"id\": %d,\n\t\t\"text\": \"%s\"\n\t}", token_type(t), t->type, t->text);
+			}
+		}
+
+		if (i != l->numTokens-1)
+			fprintf(out, ",");
+	}
+	fprintf(out, "\n]\n");
+}
+
 int lexer_run(Lexer *l)
 {
-	fprintf(stdout, "\"Lexer\": {\n");
+	l->tokens = malloc(sizeof(Token) * l->maxTokens);
 
-	int numTokens = 0;
+	if (l->tokens == NULL)
+		lexer_abort(l, STOP_BAD_FILE, "Failed to allocate token array\n");
 
 	while (lexer_good(l))
 	{
@@ -416,41 +444,24 @@ int lexer_run(Lexer *l)
 		t.type = TOKEN_NONE;
 		t.text = NULL;
 
-		lexer_get_token(l, &t);
+		lexer_get_token(l, &l->tokens[l->numTokens]);
+		l->numTokens++;
 
-		if (lexer_good(l) && t.type != TOKEN_NONE)
+		if (l->numTokens == l->maxTokens)
 		{
-			// Prevent writing a comma on the last token because JSON doesn't like it.
-			if (numTokens)
-				fprintf(stdout, ",\n");
-			numTokens++;
-
-			if (t.text)
-			{
-				if (t.type == TOKEN_NEWLINE)
-				{
-					fprintf(stdout, "\t\"Token\": {\n\t\t\"type\": \"%s\",\n\t\t\"id\": %d,\n\t\t\"text\": \"%s\"\n\t}", token_type(&t), t.type, "<newline>");
-				}
-				else
-				{
-					fprintf(stdout, "\t\"Token\": {\n\t\t\"type\": \"%s\",\n\t\t\"id\": %d,\n\t\t\"text\": \"%s\"\n\t}", token_type(&t), t.type, t.text);
-				}
-			}
+			l->tokens = realloc(l->tokens, TOKEN_CHUNK_ALLOC_SIZE * sizeof(Token) * ((l->numTokens / TOKEN_CHUNK_ALLOC_SIZE) + 1));
+			l->maxTokens += TOKEN_CHUNK_ALLOC_SIZE;
 		}
 
-		if (t.text)
-			free(t.text);
+		if (!lexer_good(l))
+			break;
 	}
-
-	fprintf(stdout, "\n}\n");
 
 	if (l->stop != STOP_NONE && l->stop != STOP_EOF)
 	{
 		lexer_print_error(l);
-		lexer_free(l);
 		return EXIT_FAILURE;
 	}
 
-	lexer_free(l);
 	return EXIT_SUCCESS;
 }

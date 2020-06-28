@@ -21,5 +21,8 @@ int main(int argc, char **argv)
 	if (EXIT_FAILURE == lexer_run(&l))
 		return EXIT_FAILURE;
 
+	lexer_enumerate(&l, stdout);
+	lexer_free(&l);
+
 	return EXIT_SUCCESS;
 }
