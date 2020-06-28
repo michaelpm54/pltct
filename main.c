@@ -83,24 +83,7 @@ const char *kKeywords[] =
 
 #define COUNT_OF(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
-int lexer_error(Lexer *l, const char *format, ...)
-{
-	if (l->errMsg)
-		free(l->errMsg);
-
-	l->errMsg = malloc(ERR_MAX_LEN);
-	if (!l->errMsg)
-		return -1;
-
-    va_list args;
-    va_start(args, format);
-
-	vsnprintf(l->errMsg, ERR_MAX_LEN, format, args);
-
-    va_end(args);
-}
-
-void lexer_abort(Lexer *l, StopReason stop);
+void lexer_abort(Lexer *l, StopReason stop, const char *fmt, ...);
 
 bool is_keyword(const char *text, int len)
 {
@@ -117,7 +100,7 @@ bool is_keyword(const char *text, int len)
 char lexer_peek(Lexer *l)
 {
 	if (l->pos+1 >= l->size)
-		lexer_abort(l, STOP_PEEK_EOF);
+		lexer_abort(l, STOP_PEEK_EOF, "");
 	return l->buf[l->pos+1];
 }
 
@@ -166,16 +149,29 @@ char *get_file(const char *path, long unsigned int *size)
 	return realloc(buf, *size);
 }
 
-void lexer_abort(Lexer *l, StopReason stop)
+void lexer_abort(Lexer *l, StopReason stop, const char *format, ...)
 {
 	l->stop = stop;
+
+	if (l->errMsg)
+		free(l->errMsg);
+
+	if (format && format[0] != '\0')
+	{
+		l->errMsg = malloc(ERR_MAX_LEN);
+	
+		va_list args;
+    	va_start(args, format);
+		vsnprintf(l->errMsg, ERR_MAX_LEN, format, args);
+    	va_end(args);	
+	}
 }
 
 void lexer_advance(Lexer *l)
 {
 	if (l->pos+1 == l->size || l->buf[l->pos+1] == '\0')
 	{
-		lexer_abort(l, STOP_EOF);
+		lexer_abort(l, STOP_EOF, "");
 	}
 
 	l->c = l->buf[++l->pos];
@@ -194,7 +190,7 @@ void lexer_init(Lexer *l, const char *filename)
 	l->column = 0;
 	if (!l->buf)
 	{
-		lexer_abort(l, STOP_BAD_FILE);
+		lexer_abort(l, STOP_BAD_FILE, "");
 	}
 }
 
@@ -219,7 +215,7 @@ void lexer_skip_whitespace(Lexer *l)
 	{
 		lexer_advance(l);
 		if (l->c == EOF || l->c == LEXER_EOF)
-			lexer_abort(l, STOP_EOF);
+			lexer_abort(l, STOP_EOF, "");
 	}
 }
 
@@ -231,7 +227,7 @@ void lexer_get_number(Lexer *l)
 		if (l->c == '.')
 		{
 			if (havePoint)
-				lexer_abort(l, STOP_INVALID_NUMBER);
+				lexer_abort(l, STOP_INVALID_NUMBER, "");
 			else
 				havePoint = true;
 		}
@@ -338,8 +334,7 @@ void lexer_get_token(Lexer *l, Token *t)
 
 	if (t->type == TOKEN_UNKNOWN)
 	{
-		lexer_abort(l, STOP_UNKNOWN_TOKEN);
-		lexer_error(l, "line %d column %d: '%s'", l->line, l->column, t->text);
+		lexer_abort(l, STOP_UNKNOWN_TOKEN, "line %d column %d: '%s'", l->line, l->column, t->text);
 	}
 }
 
