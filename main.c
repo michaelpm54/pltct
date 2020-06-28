@@ -49,6 +49,7 @@ typedef enum StopReason_e
 	STOP_INVALID_NUMBER,
 	STOP_BAD_FILE,
 	STOP_PEEK_EOF,
+	STOP_INVALID_STRING,
 } StopReason;
 
 typedef struct Lexer_s
@@ -205,7 +206,20 @@ void lexer_get_string(Lexer *l)
 {
 	do {
 		lexer_advance(l);
-	} while (l->c != '"' && l->stop == STOP_NONE);
+
+		if (l->stop != STOP_NONE)
+			break;
+
+		if (l->c == '"')
+			break;
+
+		if (l->c == '\\')
+			lexer_abort(l, STOP_INVALID_STRING, "\\");
+
+		if (l->c == '%')
+			lexer_abort(l, STOP_INVALID_STRING, "%%");
+	} while (1);
+
 	lexer_advance(l);
 }
 
@@ -393,6 +407,8 @@ char *get_stop_reason(StopReason r)
 			return "Bad file";
 		case STOP_PEEK_EOF:
 			return "Peek EOF";
+		case STOP_INVALID_STRING:
+			return "Invalid string";
 		default:
 			return "Unknown";
 	}
@@ -402,7 +418,11 @@ void lexer_print_error(Lexer *l)
 {
 	const int MAX_LEN = 128;
 	char *msg = malloc(MAX_LEN);
-	snprintf(msg, MAX_LEN, "%s: %s", get_stop_reason(l->stop), l->errMsg);
+	snprintf(msg, MAX_LEN,
+		"%s: line %d column %d: '%s'",
+		get_stop_reason(l->stop), l->line, l->column,
+		l->errMsg ? l->errMsg : "<no msg>"
+	);
 	fprintf(stderr, "%s\n", msg);
 	free(msg);
 }
@@ -456,7 +476,7 @@ int main(int argc, char **argv)
 
 	puts("\n}");
 
-	if (l.errMsg)
+	if (l.stop != STOP_NONE && l.stop != STOP_EOF)
 	{
 		lexer_print_error(&l);
 		lexer_free(&l);
