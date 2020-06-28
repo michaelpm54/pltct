@@ -404,7 +404,7 @@ void lexer_print_error(Lexer *l)
 	free(msg);
 }
 
-int lexer_run(Lexer *l, const char *buffer)
+int lexer_run(Lexer *l)
 {
 	fprintf(stdout, "\"Lexer\": {\n");
 
