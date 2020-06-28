@@ -12,9 +12,9 @@
 #include <stdarg.h>
 #include <ctype.h>
 
-#define ERR_MAX_LEN 128
-
 #include "lexer.h"
+
+#define ERR_MAX_LEN 128
 
 typedef struct Token_s
 {
