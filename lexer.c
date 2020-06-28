@@ -22,7 +22,7 @@ typedef struct Token_s
 	char *text;
 } Token;
 
-const char *kKeywords[] =
+const char * const kKeywords[] =
 {
 	"WHILE",
 	"ENDWHILE",
@@ -34,9 +34,9 @@ const char *kKeywords[] =
 
 #define COUNT_OF(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
-void lexer_abort(Lexer *l, StopReason stop, const char *fmt, ...);
+void lexer_abort(Lexer *l, StopReason stop, const char * const fmt, ...);
 
-bool is_keyword(const char *text, int len)
+bool is_keyword(const char * const text, int len)
 {
 	for (int i = 0; i < COUNT_OF(kKeywords); i++)
 	{
@@ -60,7 +60,7 @@ bool lexer_good(Lexer *l)
 	return l->stop == STOP_NONE;
 }
 
-char *get_file(const char *path, long unsigned int *size)
+char *get_file(const char * const path, long unsigned int *size)
 {
 	FILE *file = fopen(path, "r");
 	if (!file)
@@ -100,7 +100,7 @@ char *get_file(const char *path, long unsigned int *size)
 	return realloc(buf, *size);
 }
 
-void lexer_abort(Lexer *l, StopReason stop, const char *format, ...)
+void lexer_abort(Lexer *l, StopReason stop, const char * const format, ...)
 {
 	l->stop = stop;
 
@@ -129,7 +129,7 @@ void lexer_advance(Lexer *l)
 	l->column++;
 }
 
-int lexer_init(Lexer *l, const char *filename)
+int lexer_init(Lexer *l, const char * const filename)
 {
 	l->stop = STOP_NONE;
 	l->errMsg = NULL;
