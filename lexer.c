@@ -12,7 +12,6 @@
 #include <stdarg.h>
 #include <ctype.h>
 
-#define LEXER_EOF '\0'
 #define ERR_MAX_LEN 128
 
 typedef enum TokenType_s
@@ -181,7 +180,7 @@ int lexer_init(Lexer *l, const char *filename)
 {
 	l->stop = STOP_NONE;
 	l->errMsg = NULL;
-	l->c = LEXER_EOF;
+	l->c = EOF;
 	l->pos = 0;
 	l->size = 0;
 	l->buf = get_file(filename, &l->size);
@@ -228,7 +227,7 @@ void lexer_skip_whitespace(Lexer *l)
 	while (lexer_good(l) && l->pos < l->size && isspace(l->c) && l->c != '\n')
 	{
 		lexer_advance(l);
-		if (l->c == EOF || l->c == LEXER_EOF)
+		if (l->c == EOF)
 			lexer_abort(l, STOP_EOF, "");
 	}
 }
