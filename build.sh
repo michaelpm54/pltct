@@ -1,2 +1,2 @@
 #!/bin/bash
-gcc main.c -o lexer -std=c2x -O3
+gcc main.c lexer.c -o lexer -std=c2x -O3
