@@ -173,10 +173,8 @@ Token CLexer::get_token()
 	}
 	else if (isalpha(m_c))
 	{
-		while (isalpha(m_c))
-		{
-			advance();
-		}
+		do advance(); while (isalpha(m_c));
+
 		const int size = m_pos - startPos;
 		const auto text = m_input.substr(startPos, size);
 		if (is_keyword(text))
@@ -263,8 +261,7 @@ Token CLexer::get_token()
 	}
 	else if (m_c == '#')
 	{
-		while (m_c != '\n')
-			advance();
+		do advance(); while (m_c != '\n');
 	}
 	else
 	{
