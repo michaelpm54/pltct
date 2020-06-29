@@ -3,6 +3,8 @@
 #ifndef TOKEN_H
 #define TOKEN_H
 
+#include <string>
+
 typedef enum TokenType_s
 {
 	TOKEN_NONE,
@@ -45,10 +47,10 @@ typedef enum TokenType_s
 	TOKEN_KEYWORDS_END = TOKEN_REPEAT,
 } TokenType;
 
-typedef struct Token_s
+struct Token
 {
-	TokenType type;
-	char *text;
-} Token;
+	TokenType type{TOKEN_NONE};
+	std::string text;
+};
 
 #endif // TOKEN_H
