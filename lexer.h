@@ -46,8 +46,12 @@ private:
 	{
 		switch (token.type)
 		{
-			case TOKEN_KEYWORDS_BEGIN:
-			case TOKEN_KEYWORDS_END:
+			case TOKEN_PRINT:
+			case TOKEN_INPUT:
+			case TOKEN_LET:
+			case TOKEN_WHILE:
+			case TOKEN_ENDWHILE:
+			case TOKEN_REPEAT:
 				return "Keyword";
 			case TOKEN_IDENTIFIER:
 				return "Identifier";

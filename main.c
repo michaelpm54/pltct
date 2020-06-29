@@ -41,26 +41,19 @@ int main(int argc, char **argv)
 
 	lexer.enumerate(stdout);
 
-	/* Parser
-	Parser p;
+	/* Parser */
+	Parser parser;
 
-	if (EXIT_FAILURE == parser_init(&p, l.tokens, l.numTokens))
-	{
-		lexer_free(&l);
-		parser_free(&p);
+	try {
+		parser.run(tokens);
+	} catch (const std::runtime_error &e) {
+		std::cout << e.what() << std::endl;
 		return EXIT_FAILURE;
 	}
-	lexer_free(&l);
-
-	if (EXIT_FAILURE == parser_run(&p))
-	{
-		parser_free(&p);
+	catch (...) {
+		std::cout << "Something went wrong" << std::endl;
 		return EXIT_FAILURE;
 	}
-
-	parser_enumerate(&p, stdout);
-	parser_free(&p);
-	*/
 
 	return EXIT_SUCCESS;
 }

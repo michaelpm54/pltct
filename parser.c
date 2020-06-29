@@ -2,134 +2,187 @@
 
 #include "parser.h"
 
+#include <stdexcept>
+
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
-#include <setjmp.h>
 
-void parser_g_program(Parser *p);
-void parser_g_statement(Parser *p);
-void parser_g_print(Parser *p);
-void parser_g_expression(Parser *p);
-void parser_g_newline(Parser *p);
+#include "token.h"
 
-void parser_abort(Parser *p, const char * const fmt, ...);
-Token *parser_advance(Parser *p);
-void parser_append(Parser *p, const char *s);
-
-static jmp_buf buf;
-
-void parser_abort(Parser *p, const char * const fmt, ...)
+std::string levels(int level)
 {
-	if (fmt && fmt[0] != '\0')
-	{
-		char *err = static_cast<char*>(malloc(128));
-	
-		va_list args;
-    	va_start(args, fmt);
-		vsnprintf(err, 128, fmt, args);
-    	va_end(args);	
-
-    	fprintf(stderr, "%s\n", err);
-	}
-	longjmp(buf, 1);
+	return std::string(level, '-');
 }
 
-int parser_init(Parser *p, Token *tokens, int numTokens)
+void Parser::run(const std::vector<Token> &tokens)
 {
-	if (setjmp(buf))
-		return EXIT_FAILURE;
-
-	p->numTokens = numTokens;
-	p->tokens = static_cast<Token*>(malloc(numTokens * sizeof(Token)));
-	p->i = 0;
-	if (!p->tokens)
-		return EXIT_FAILURE;
-	memcpy(p->tokens, tokens, numTokens * sizeof(Token));
-	return EXIT_SUCCESS;
-}
-
-int parser_run(Parser *p)
-{
-	parser_g_program(p);
-	return EXIT_SUCCESS;
-}
-
-void parser_enumerate(Parser *p, FILE *out)
-{
-	// fprintf(out, "Parser:\n");
-}
-
-void parser_free(Parser *p)
-{
-	free(p->tokens);
-}
-
-void parser_g_program(Parser *p)
-{
-	if (!p->numTokens)
+	if (tokens.empty())
 		return;
 
-	parser_append(p, "PROGRAM");
-	while (p->tokens[p->i].type != TOKEN_EOF)
-	{
-		parser_g_statement(p);
-	}
+	m_tokens = tokens;
+	m_token = &tokens[0];
 
-	printf("DONE\n");
+	g_program();
 }
 
-void parser_g_statement(Parser *p)
+void Parser::g_program()
 {
-	printf("STMT-");
-	switch (p->tokens[p->i].type)
+	puts("PROGRAM");
+	while (m_token->type != TOKEN_EOF)
+		g_statement();
+	puts("DONE");
+}
+
+void Parser::g_statement()
+{
+	printf("%s STATEMENT\n", levels(++m_level).c_str());
+	switch (m_token->type)
 	{
 		case TOKEN_PRINT:
-			parser_g_print(p);
+			g_print();
+			break;
+		case TOKEN_INPUT:
+			g_input();
+			break;
+		case TOKEN_LET:
+			g_let();
 			break;
 		default:
-			printf("UNK\n");
+			printf("%s UNKNOWN\n", levels(++m_level).c_str());
+			m_level--;
+			advance();
 			break;
 	}
+	m_level--;
 }
 
-void parser_g_print(Parser *p)
+void Parser::g_print()
 {
-	printf("PRINT\n");
-	Token *t = parser_advance(p);
-	if (t->type == TOKEN_STRING)
-		parser_advance(p);
+	printf("%s PRINT\n", levels(++m_level).c_str());
+	advance();
+	if (m_token->type == TOKEN_STRING)
+		g_string();
 	else
-		parser_g_expression(p);
-	parser_g_newline(p);
+		g_expression();
+	g_newline();
+	m_level--;
 }
 
-void parser_g_expression(Parser *p)
+void Parser::g_input()
 {
-	printf("EXPRESSION\n");
-	// parser
+	printf("%s INPUT\n", levels(++m_level).c_str());
+	if (next_token() && next_token()->type != TOKEN_IDENTIFIER)
+		abort("bad token type for input");
+	advance();
+	g_identifier();
+	g_newline();
+	m_level--;
 }
 
-void parser_g_newline(Parser *p)
+void Parser::g_identifier()
 {
-	printf("NEWLINE\n");
-	if (p->tokens[p->i].type != TOKEN_NEWLINE)
-		parser_abort(p, "Expected newline");
-	parser_advance(p);
-	while (p->tokens[p->i].type == TOKEN_NEWLINE)
-		parser_advance(p);
+	printf("%s IDENTIFIER\n", levels(++m_level).c_str());
+	advance();
+	m_level--;
 }
 
-void parser_append(Parser *p, const char *s)
+void Parser::g_newline()
 {
-	fprintf(stdout, "%s\n", s);
+	printf("%s NEWLINE\n", levels(++m_level).c_str());
+	if (m_token->type != TOKEN_NEWLINE)
+	{
+		printf("token type %d\n", m_token->type);
+		abort("expected newline");
+	}
+	do advance(); while (m_token->type == TOKEN_NEWLINE);
+	m_level--;
 }
 
-Token *parser_advance(Parser *p)
+void Parser::g_expression()
 {
-	p->i++;
-	if (p->i >= p->numTokens)
-		p->i = p->numTokens-1;
+	printf("%s EXPRESSION\n", levels(++m_level).c_str());
 
-	return &p->tokens[p->i];
+	advance();
+
+	switch (m_token->type)
+	{
+		case TOKEN_IDENTIFIER:
+			g_identifier();
+			break;
+		case TOKEN_STRING:
+			g_string();
+			break;
+		default:
+			abort("bad token type in expression: " + std::to_string(m_token->type));
+	}
+
+	m_level--;
+}
+
+void Parser::g_string()
+{
+	printf("%s STRING\n", levels(++m_level).c_str());
+	advance();
+	m_level--;
+}
+
+void Parser::g_let()
+{
+	printf("%s LET\n", levels(++m_level).c_str());
+	advance();
+
+	switch (m_token->type)
+	{
+		case TOKEN_IDENTIFIER:
+			g_identifier();
+			break;
+		default:
+			abort("bad token type for let: " + std::to_string(m_token->type));
+			break;
+	}
+
+	g_assign();
+	g_expression();
+	g_newline();
+
+	m_level--;
+}
+
+void Parser::g_assign()
+{
+	printf("%s ASSIGN\n", levels(++m_level).c_str());
+
+	if (m_token->type != TOKEN_ASSIGN)
+		abort("expected assignment operator");
+
+	advance();
+
+	m_level--;
+}
+
+void Parser::abort(const std::string &msg)
+{
+	throw std::runtime_error("Parser aborted: " + msg);
+}
+
+Token *Parser::next_token()
+{
+	if (m_tokenIndex >= m_tokens.size())
+		return nullptr;
+	return &m_tokens[m_tokenIndex+1];
+}
+
+Token *Parser::prev_token()
+{
+	if (m_tokenIndex == 0)
+		return nullptr;
+	return &m_tokens[m_tokenIndex-1];
+}
+
+void Parser::advance()
+{
+	if (m_tokenIndex >= m_tokens.size())
+		abort("exceeded num tokens");
+	m_token = &m_tokens[++m_tokenIndex];
 }

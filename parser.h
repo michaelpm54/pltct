@@ -3,20 +3,43 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-#include <stdio.h>
+#include <string>
+#include <vector>
 
-#include "token.h"
+struct Token;
 
-typedef struct Parser_s
+class Parser
 {
-	int i; // current token index
-	int numTokens;
-	Token *tokens;
-} Parser;
+public:
+	void run(const std::vector<Token> &tokens);
 
-int parser_init(Parser *p, Token *tokens, int numTokens);
-int parser_run(Parser *p);
-void parser_enumerate(Parser *p, FILE *out);
-void parser_free(Parser *p);
+private:
+	void abort(const std::string &msg);
+	void advance();
+	Token *next_token();
+	Token *prev_token();
+
+private:
+	void g_program();
+	void g_statement();
+	void g_expression();
+	void g_newline();
+	void g_string();
+	void g_identifier();
+
+	// Operators
+	void g_assign();
+
+	// Keywords
+	void g_print();
+	void g_input();
+	void g_let();
+
+private:
+	std::vector<Token> m_tokens;
+	const Token *m_token{nullptr};
+	int m_tokenIndex{0};
+	int m_level{0};
+};
 
 #endif // PARSER_H
