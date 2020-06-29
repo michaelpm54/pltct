@@ -44,7 +44,7 @@ bool is_keyword(std::string_view str)
 	return false;
 }
 
-void CLexer::get_string(Token &token)
+void Lexer::get_string(Token &token)
 {
 	token.type = TOKEN_STRING;
 
@@ -58,7 +58,7 @@ void CLexer::get_string(Token &token)
 	advance();
 }
 
-void CLexer::get_number(Token &token)
+void Lexer::get_number(Token &token)
 {
 	token.type = TOKEN_NUMBER;
 
@@ -93,7 +93,7 @@ void CLexer::get_number(Token &token)
 	} while (1);
 }
 
-void CLexer::enumerate(FILE *out)
+void Lexer::enumerate(FILE *out)
 {
 	fprintf(out, "[\n");
 	for (int i = 0; i < m_numTokens; i++)
@@ -127,7 +127,7 @@ void CLexer::enumerate(FILE *out)
 
 static constexpr int kTokenChunkSize = 32768;
 
-std::vector<Token> CLexer::run(const std::string &input)
+std::vector<Token> Lexer::run(const std::string &input)
 {
 	m_numTokenChunks = 1;
 	m_maxTokens = kTokenChunkSize * m_numTokenChunks;
@@ -160,7 +160,7 @@ std::vector<Token> CLexer::run(const std::string &input)
 	return m_tokens;
 }
 
-Token CLexer::get_token()
+Token Lexer::get_token()
 {
 	Token token;
 
@@ -292,7 +292,7 @@ Token CLexer::get_token()
 	return token;
 }
 
-void CLexer::advance()
+void Lexer::advance()
 {
 	m_pos++;
 	m_column++;
@@ -309,7 +309,7 @@ void CLexer::advance()
 	}
 }
 
-char CLexer::peek()
+char Lexer::peek()
 {
 	if (m_pos+1 >= m_input.size())
 	{

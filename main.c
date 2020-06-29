@@ -25,7 +25,7 @@ int main(int argc, char **argv)
 	}
 
 	/* Lexer */
-	CLexer lexer;
+	Lexer lexer;
 	std::vector<Token> tokens;
 
 	try {

@@ -8,7 +8,7 @@
 
 #include "token.h"
 
-typedef enum StopReason_e
+enum StopReason
 {
 	STOP_NONE,
 	STOP_UNKNOWN_TOKEN,
@@ -16,25 +16,7 @@ typedef enum StopReason_e
 	STOP_BAD_FILE,
 	STOP_PEEK_EOF,
 	STOP_INVALID_STRING,
-} StopReason;
-
-typedef struct Lexer_s
-{
-	int pos;
-	long unsigned int size;
-	char c;
-	std::string buf;
-	StopReason stop;
-	int line;
-	int column;
-	int numTokens;
-	int maxTokens;
-	std::vector<Token> tokens;
-} Lexer;
-
-void lexer_init(Lexer *l, const char *filename);
-void lexer_run(Lexer *l);
-void lexer_enumerate(Lexer *l, FILE *out);
+};
 
 template<typename ... Args>
 std::string string_format( const std::string& format, Args ... args )
@@ -46,7 +28,7 @@ std::string string_format( const std::string& format, Args ... args )
     return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
 }
 
-class CLexer
+class Lexer
 {
 public:
 	std::vector<Token> run(const std::string &input);
@@ -141,6 +123,5 @@ private:
 	std::string m_input;
 	std::vector<Token> m_tokens;
 };
-
 
 #endif // LEXER_H
