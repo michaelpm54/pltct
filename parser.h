@@ -9,6 +9,7 @@
 
 typedef struct Parser_s
 {
+	int i; // current token index
 	int numTokens;
 	Token *tokens;
 } Parser;

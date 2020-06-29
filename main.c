@@ -1,5 +1,8 @@
 /* SPDX-License-Identifier: GPLv3-or-later */
 
+#include <iostream>
+#include <stdexcept>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,23 +22,36 @@ int main(int argc, char **argv)
 	/* Lexer */
 	Lexer l;
 
-	if (EXIT_FAILURE == lexer_init(&l, argv[1]))
-	{
+	try {
+		lexer_init(&l, argv[1]);
+	} catch (const std::runtime_error &e) {
+		std::cout << e.what() << std::endl;
 		lexer_free(&l);
 		return EXIT_FAILURE;
 	}
-
-	if (EXIT_FAILURE == lexer_run(&l))
-	{
+	catch (...) {
 		lexer_free(&l);
+		std::cout << "Something went wrong" << std::endl;
 		return EXIT_FAILURE;
 	}
 
+	try {
+		lexer_run(&l);
+	} catch (const std::runtime_error &e) {
+		std::cout << e.what() << std::endl;
+		lexer_free(&l);
+		return EXIT_FAILURE;
+	}
+	catch (...) {
+		std::cout << "Something went wrong" << std::endl;
+		lexer_free(&l);
+		return EXIT_FAILURE;
+	}
 	lexer_enumerate(&l, stdout);
+	lexer_free(&l);
 
-	/* Parser */
+	/* Parser
 	Parser p;
-
 
 	if (EXIT_FAILURE == parser_init(&p, l.tokens, l.numTokens))
 	{
@@ -53,6 +69,7 @@ int main(int argc, char **argv)
 
 	parser_enumerate(&p, stdout);
 	parser_free(&p);
+	*/
 
 	return EXIT_SUCCESS;
 }

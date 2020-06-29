@@ -3,6 +3,8 @@
 #ifndef LEXER_H
 #define LEXER_H
 
+#include <string>
+
 #include "token.h"
 
 typedef enum StopReason_e
@@ -20,9 +22,8 @@ typedef struct Lexer_s
 	int pos;
 	long unsigned int size;
 	char c;
-	char *buf;
+	std::string buf;
 	StopReason stop;
-	char *errMsg;
 	int line;
 	int column;
 	int numTokens;
@@ -30,8 +31,8 @@ typedef struct Lexer_s
 	Token *tokens;
 } Lexer;
 
-int lexer_init(Lexer *l, const char *filename);
-int lexer_run(Lexer *l);
+void lexer_init(Lexer *l, const char *filename);
+void lexer_run(Lexer *l);
 void lexer_enumerate(Lexer *l, FILE *out);
 void lexer_free(Lexer *l);
 

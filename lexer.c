@@ -7,6 +7,11 @@
  	- Ignore comments
 */
 
+#include <filesystem>
+#include <fstream>
+#include <stdexcept>
+#include <string>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,7 +38,70 @@ const char * const kKeywords[] =
 
 #define COUNT_OF(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
-void lexer_abort(Lexer *l, StopReason stop, const char * const fmt, ...);
+std::string token_type(Token *t)
+{
+	switch (t->type)
+	{
+		case TOKEN_KEYWORDS_BEGIN:
+		case TOKEN_KEYWORDS_END:
+			return "Keyword";
+		case TOKEN_IDENTIFIER:
+			return "Identifier";
+		case TOKEN_STRING:
+			return "String";
+		case TOKEN_NEWLINE:
+			return "Newline";
+		case TOKEN_ASSIGN:
+			return "Assign";
+		case TOKEN_LESS:
+			return "Less than";
+		case TOKEN_GREATER:
+			return "Greater than";
+		case TOKEN_LE:
+			return "Less than or equal to";
+		case TOKEN_GE:
+			return "Greater than or equal to";
+		case TOKEN_ADD:
+			return "Add";
+		case TOKEN_SUBTRACT:
+			return "Subtract";
+		case TOKEN_NUMBER:
+			return "Number";
+		case TOKEN_EOF:
+			return "EOF";
+		case TOKEN_NONE:
+			return "None";
+		case TOKEN_UNKNOWN:
+			return "Unknown";
+		default:
+			return "<unhandled>";
+	}
+}
+
+std::string get_stop_reason(StopReason r)
+{
+	switch (r)
+	{
+		case STOP_NONE:
+			return "None";
+		case STOP_UNKNOWN_TOKEN:
+			return "Unknown token";
+		case STOP_INVALID_NUMBER:
+			return "Invalid number";
+		case STOP_BAD_FILE:
+			return "Bad file";
+		case STOP_PEEK_EOF:
+			return "Peek EOF";
+		case STOP_INVALID_STRING:
+			return "Invalid string";
+		default:
+			return "Unknown";
+	}
+}
+
+
+template<typename ... Args>
+void lexer_abort(Lexer *l, StopReason stop, const char * const fmt, Args ... args);
 
 bool is_keyword(const char * const text, int len)
 {
@@ -57,96 +125,79 @@ char lexer_peek(Lexer *l)
 	return l->buf[l->pos+1];
 }
 
-char *get_file(const char * const path, long unsigned int *size)
+std::string get_file(const std::string &path)
 {
-	FILE *file = fopen(path, "r");
-	if (!file)
-	{
-		fprintf(stderr, "Failed to open file\n");
-		return NULL;
+	std::uintmax_t size = 0;
+	std::error_code ec{};
+	try {
+		size = std::filesystem::file_size(std::filesystem::canonical(path), ec);
+	} catch (const std::filesystem::filesystem_error& e) {
+		throw std::runtime_error("Failed to get input file size: " + std::string(e.what()));
 	}
+	if (ec != std::error_code{})
+		throw std::runtime_error("Failed to get input file size: " + ec.message());
 
-	fseek(file, 0, SEEK_END);
-	*size = ftell(file);
-	fseek(file, 0, SEEK_SET);
+	if (size > (3 * 1024*1024)) // 3 MB
+		throw std::runtime_error("Input file too large (> 3 MB)");
+	else if (size == 0)
+		throw std::runtime_error("Input file empty");
 
-	const int MAX_SIZE = 1048576 * 2; // 2 MB
-
-	char *buf = malloc(MAX_SIZE);
-	*size = fread(buf, 1, MAX_SIZE, file) + 1;
-	fclose(file);
-
-	if (ferror(file))
-	{
-		fprintf(stderr, "fread error\n");
-		clearerr(file);
-	}
-
-	if (*size >= MAX_SIZE)
-	{
-		fprintf(stderr, "File too big (> 2MB)\n");
-		fclose(file);
-		return NULL;
-	}
-
-	buf[*size - 1] = '\0';
-
-	return realloc(buf, *size);
+	std::ifstream stream(path, std::ios::in);
+	std::string contents{ std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
+	if (contents.empty())
+		throw std::runtime_error("Input file empty");
+	return contents;
 }
 
-void lexer_abort(Lexer *l, StopReason stop, const char * const format, ...)
+template<typename ... Args>
+std::string string_format( const std::string& format, Args ... args )
 {
-	l->stop = stop;
+    size_t size = snprintf( nullptr, 0, format.c_str(), args ... ) + 1; // Extra space for '\0'
+    if( size <= 0 ){ throw std::runtime_error( "Error during formatting." ); }
+    std::unique_ptr<char[]> buf( new char[ size ] ); 
+    snprintf( buf.get(), size, format.c_str(), args ... );
+    return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
+}
 
-	if (l->errMsg)
-		free(l->errMsg);
-
-	if (format && format[0] != '\0')
-	{
-		l->errMsg = malloc(ERR_MAX_LEN);
-	
-		va_list args;
-    	va_start(args, format);
-		vsnprintf(l->errMsg, ERR_MAX_LEN, format, args);
-    	va_end(args);	
-	}
+template<typename ... Args>
+void lexer_abort(Lexer *l, StopReason stop, const char * const format, Args ... args)
+{
+	throw std::runtime_error(string_format("%s: line %d column %d: '%s'",
+		get_stop_reason(stop).c_str(), l->line, l->column, string_format(format, args ...).c_str()));
 }
 
 void lexer_advance(Lexer *l)
 {
 	l->pos++;
+	l->column++;
 
 	if (l->pos >= l->size)
 		l->c = LEXER_EOF;
 	else
 		l->c = l->buf[l->pos];
+
+	if (l->c == '\n')
+	{
+		l->line++;
+		l->column = 1;
+	}
 }
 
-int lexer_init(Lexer *l, const char * const filename)
+void lexer_init(Lexer *l, const char * const filename)
 {
 	l->stop = STOP_NONE;
-	l->errMsg = NULL;
 	l->c = LEXER_EOF;
 	l->pos = 0;
-	l->size = 0;
-	l->buf = get_file(filename, &l->size);
+	l->buf = get_file(filename);
+	l->size = l->buf.size();
 	l->line = 1;
 	l->column = 1;
 	l->numTokens = 0;
 	l->maxTokens = TOKEN_CHUNK_ALLOC_SIZE;
-
-	if (!l->buf)
-	{
-		fprintf(stderr, "Failed to read file '%s'\n", filename);
-		return EXIT_FAILURE;
-	}
 }
 
 void lexer_free(Lexer *l)
 {
-	free(l->buf);
-	if (l->errMsg)
-		free(l->errMsg);
 	free(l->tokens);
 }
 
@@ -221,9 +272,29 @@ void lexer_get_token(Lexer *l, Token *t)
 	}
 	else if (isalpha(l->c))
 	{
-		while (l->stop == STOP_NONE && isalpha(l->c))
+		while (isalpha(l->c))
+		{
 			lexer_advance(l);
-		t->type = is_keyword(&l->buf[startPos], l->pos - startPos) ? TOKEN_KEYWORD : TOKEN_IDENTIFIER;
+		}
+		const int size = l->pos - startPos;
+		const char * const text = &l->buf[startPos];
+		if (is_keyword(text, size))
+		{
+			if (!strncmp(text, "PRINT", size))
+				t->type = TOKEN_PRINT;
+			else if (!strncmp(text, "WHILE", size))
+				t->type = TOKEN_WHILE;
+			else if (!strncmp(text, "ENDWHILE", size))
+				t->type = TOKEN_ENDWHILE;
+			else if (!strncmp(text, "LET", size))
+				t->type = TOKEN_LET;
+			else if (!strncmp(text, "INPUT", size))
+				t->type = TOKEN_INPUT;
+			else if (!strncmp(text, "REPEAT", size))
+				t->type = TOKEN_REPEAT;
+		}
+		else
+			t->type = TOKEN_IDENTIFIER;
 	}
 	else if (l->c == '"')
 	{
@@ -235,8 +306,6 @@ void lexer_get_token(Lexer *l, Token *t)
 		if (l->c == '\n')
 		{
 			t->type = TOKEN_NEWLINE;
-			l->line++;
-			l->column = 1;
 			lexer_advance(l);
 		}
 		else
@@ -318,7 +387,7 @@ void lexer_get_token(Lexer *l, Token *t)
 	}
 
 	int textSize = textEnd - textStart;
-	t->text = malloc(textSize+1);
+	t->text = static_cast<char*>(malloc(textSize+1));
 	if (t->text)
 	{
 		memcpy(t->text, &l->buf[textStart], textSize);
@@ -329,79 +398,6 @@ void lexer_get_token(Lexer *l, Token *t)
 	{
 		lexer_abort(l, STOP_UNKNOWN_TOKEN, "%c", l->buf[l->pos]);
 	}
-}
-
-char *token_type(Token *t)
-{
-	switch (t->type)
-	{
-		case TOKEN_KEYWORD:
-			return "Keyword";
-		case TOKEN_IDENTIFIER:
-			return "Identifier";
-		case TOKEN_STRING:
-			return "String";
-		case TOKEN_NEWLINE:
-			return "Newline";
-		case TOKEN_ASSIGN:
-			return "Assign";
-		case TOKEN_LESS:
-			return "Less than";
-		case TOKEN_GREATER:
-			return "Greater than";
-		case TOKEN_LE:
-			return "Less than or equal to";
-		case TOKEN_GE:
-			return "Greater than or equal to";
-		case TOKEN_ADD:
-			return "Add";
-		case TOKEN_SUBTRACT:
-			return "Subtract";
-		case TOKEN_NUMBER:
-			return "Number";
-		case TOKEN_EOF:
-			return "EOF";
-		case TOKEN_NONE:
-			return "None";
-		case TOKEN_UNKNOWN:
-			return "Unknown";
-		default:
-			return "<unhandled>";
-	}
-}
-
-char *get_stop_reason(StopReason r)
-{
-	switch (r)
-	{
-		case STOP_NONE:
-			return "None";
-		case STOP_UNKNOWN_TOKEN:
-			return "Unknown token";
-		case STOP_INVALID_NUMBER:
-			return "Invalid number";
-		case STOP_BAD_FILE:
-			return "Bad file";
-		case STOP_PEEK_EOF:
-			return "Peek EOF";
-		case STOP_INVALID_STRING:
-			return "Invalid string";
-		default:
-			return "Unknown";
-	}
-}
-
-void lexer_print_error(Lexer *l)
-{
-	const int MAX_LEN = 128;
-	char *msg = malloc(MAX_LEN);
-	snprintf(msg, MAX_LEN,
-		"%s: line %d column %d: '%s'",
-		get_stop_reason(l->stop), l->line, l->column,
-		l->errMsg ? l->errMsg : "<no msg>"
-	);
-	fprintf(stderr, "%s\n", msg);
-	free(msg);
 }
 
 void lexer_enumerate(Lexer *l, FILE *out)
@@ -428,7 +424,7 @@ void lexer_enumerate(Lexer *l, FILE *out)
 				break;
 		}
 
-		fprintf(out, "\t{\n\t\t\"type\": \"%s\",\n\t\t\"id\": %d,\n\t\t\"text\": \"%s\"\n\t}", token_type(t), t->type, text);
+		fprintf(out, "\t{\n\t\t\"type\": \"%s\",\n\t\t\"id\": %d,\n\t\t\"text\": \"%s\"\n\t}", token_type(t).c_str(), t->type, text);
 
 		if (i != l->numTokens-1)
 			fprintf(out, ",");
@@ -436,9 +432,9 @@ void lexer_enumerate(Lexer *l, FILE *out)
 	fprintf(out, "\n]\n");
 }
 
-int lexer_run(Lexer *l)
+void lexer_run(Lexer *l)
 {
-	l->tokens = malloc(sizeof(Token) * l->maxTokens);
+	l->tokens = static_cast<Token*>(malloc(sizeof(Token) * l->maxTokens));
 
 	if (l->tokens == NULL)
 		lexer_abort(l, STOP_BAD_FILE, "Failed to allocate token array\n");
@@ -460,16 +456,8 @@ int lexer_run(Lexer *l)
 		// Grow the token array
 		if (l->numTokens == l->maxTokens)
 		{
-			l->tokens = realloc(l->tokens, TOKEN_CHUNK_ALLOC_SIZE * sizeof(Token) * ((l->numTokens / TOKEN_CHUNK_ALLOC_SIZE) + 1));
+			l->tokens = static_cast<Token*>(realloc(l->tokens, TOKEN_CHUNK_ALLOC_SIZE * sizeof(Token) * ((l->numTokens / TOKEN_CHUNK_ALLOC_SIZE) + 1)));
 			l->maxTokens += TOKEN_CHUNK_ALLOC_SIZE;
 		}
 	}
-
-	if (l->stop != STOP_NONE)
-	{
-		lexer_print_error(l);
-		return EXIT_FAILURE;
-	}
-
-	return EXIT_SUCCESS;
 }
