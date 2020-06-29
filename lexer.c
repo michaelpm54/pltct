@@ -16,8 +16,10 @@
 
 #include "lexer.h"
 
+#define OUTPUT_TEXT_SIZE 128
+#define LEXER_EOF '\0'
 #define ERR_MAX_LEN 128
-#define TOKEN_CHUNK_ALLOC_SIZE 40 // number of tokens per allocated chunk
+#define TOKEN_CHUNK_ALLOC_SIZE 32768 // number of tokens per allocated chunk
 
 const char * const kKeywords[] =
 {
@@ -48,13 +50,11 @@ bool is_keyword(const char * const text, int len)
 char lexer_peek(Lexer *l)
 {
 	if (l->pos+1 >= l->size)
+	{
 		lexer_abort(l, STOP_PEEK_EOF, NULL);
+		return LEXER_EOF;
+	}
 	return l->buf[l->pos+1];
-}
-
-bool lexer_good(Lexer *l)
-{
-	return l->stop == STOP_NONE;
 }
 
 char *get_file(const char * const path, long unsigned int *size)
@@ -114,20 +114,19 @@ void lexer_abort(Lexer *l, StopReason stop, const char * const format, ...)
 
 void lexer_advance(Lexer *l)
 {
-	if (l->pos+1 == l->size || l->buf[l->pos+1] == '\0')
-	{
-		lexer_abort(l, STOP_EOF, NULL);
-	}
+	l->pos++;
 
-	l->c = l->buf[++l->pos];
-	l->column++;
+	if (l->pos >= l->size)
+		l->c = LEXER_EOF;
+	else
+		l->c = l->buf[l->pos];
 }
 
 int lexer_init(Lexer *l, const char * const filename)
 {
 	l->stop = STOP_NONE;
 	l->errMsg = NULL;
-	l->c = EOF;
+	l->c = LEXER_EOF;
 	l->pos = 0;
 	l->size = 0;
 	l->buf = get_file(filename, &l->size);
@@ -153,33 +152,20 @@ void lexer_free(Lexer *l)
 
 void lexer_get_string(Lexer *l)
 {
-	do {
+	lexer_advance(l);
+	while (l->c != '"' && l->c != LEXER_EOF)
+	{
+		if (l->c == '\\' || l->c == '%' || l->c == '\r' || l->c == '\n' || l->c == '\t')
+			lexer_abort(l, STOP_INVALID_STRING, "%c", l->c);
 		lexer_advance(l);
-
-		if (l->stop != STOP_NONE)
-			break;
-
-		if (l->c == '"')
-			break;
-
-		if (l->c == '\\')
-			lexer_abort(l, STOP_INVALID_STRING, "\\");
-
-		if (l->c == '%')
-			lexer_abort(l, STOP_INVALID_STRING, "%%");
-	} while (1);
-
+	}
 	lexer_advance(l);
 }
 
 void lexer_skip_whitespace(Lexer *l)
 {
-	while (lexer_good(l) && l->pos < l->size && isspace(l->c) && l->c != '\n')
-	{
+	while (l->pos < l->size && isspace(l->c) && l->c != '\n')
 		lexer_advance(l);
-		if (l->c == EOF)
-			lexer_abort(l, STOP_EOF, NULL);
-	}
 }
 
 void lexer_get_number(Lexer *l)
@@ -198,7 +184,6 @@ void lexer_get_number(Lexer *l)
 		{
 			if (havePoint)
 			{
-				puts("NANI");
 				lexer_abort(l, STOP_INVALID_NUMBER, "Multiple decimal points.");
 			}
 			else
@@ -206,7 +191,6 @@ void lexer_get_number(Lexer *l)
 		}
 		else if (havePoint && !haveNumberAfterPoint)
 		{
-			puts("NANI");
 			lexer_abort(l, STOP_INVALID_NUMBER, "A digit must follow a decimal point.");
 		}
 		else
@@ -219,15 +203,8 @@ void lexer_get_number(Lexer *l)
 
 void lexer_skip_to_newline(Lexer *l)
 {
-	do {
+	while (l->c != '\n')
 		lexer_advance(l);
-
-		if (!lexer_good(l))
-			break;
-
-		if (l->c == '\n')
-			break;
-	} while (1);
 }
 
 void lexer_get_token(Lexer *l, Token *t)
@@ -238,7 +215,11 @@ void lexer_get_token(Lexer *l, Token *t)
 	int startPos = l->pos;
 	l->c = l->buf[l->pos];
 
-	if (isalpha(l->c))
+	if (l->c == LEXER_EOF)
+	{
+		t->type = TOKEN_EOF;
+	}
+	else if (isalpha(l->c))
 	{
 		while (l->stop == STOP_NONE && isalpha(l->c))
 			lexer_advance(l);
@@ -258,7 +239,8 @@ void lexer_get_token(Lexer *l, Token *t)
 			l->column = 1;
 			lexer_advance(l);
 		}
-		lexer_skip_whitespace(l);
+		else
+			lexer_skip_whitespace(l);
 	}
 	else if (l->c == '=')
 	{
@@ -345,7 +327,7 @@ void lexer_get_token(Lexer *l, Token *t)
 
 	if (t->type == TOKEN_UNKNOWN)
 	{
-		lexer_abort(l, STOP_UNKNOWN_TOKEN, "%c", l->buf[l->pos-1]);
+		lexer_abort(l, STOP_UNKNOWN_TOKEN, "%c", l->buf[l->pos]);
 	}
 }
 
@@ -394,8 +376,6 @@ char *get_stop_reason(StopReason r)
 	{
 		case STOP_NONE:
 			return "None";
-		case STOP_EOF:
-			return "EOF";
 		case STOP_UNKNOWN_TOKEN:
 			return "Unknown token";
 		case STOP_INVALID_NUMBER:
@@ -434,17 +414,21 @@ void lexer_enumerate(Lexer *l, FILE *out)
 		if (i != 0)
 			fprintf(out, "\n");
 
-		if (t->text)
+		char text[OUTPUT_TEXT_SIZE];
+		switch (t->type)
 		{
-			if (t->type == TOKEN_NEWLINE)
-			{
-				fprintf(out, "\t{\n\t\t\"type\": \"%s\",\n\t\t\"id\": %d,\n\t\t\"text\": \"%s\"\n\t}", token_type(t), t->type, "<newline>");
-			}
-			else
-			{
-				fprintf(out, "\t{\n\t\t\"type\": \"%s\",\n\t\t\"id\": %d,\n\t\t\"text\": \"%s\"\n\t}", token_type(t), t->type, t->text);
-			}
+			case TOKEN_EOF:
+				snprintf(text, OUTPUT_TEXT_SIZE, "%s", "<eof>");
+				break;
+			case TOKEN_NEWLINE:
+				snprintf(text, OUTPUT_TEXT_SIZE, "%s", "<newline>");
+				break;
+			default:
+				snprintf(text, OUTPUT_TEXT_SIZE, "%s", t->text);
+				break;
 		}
+
+		fprintf(out, "\t{\n\t\t\"type\": \"%s\",\n\t\t\"id\": %d,\n\t\t\"text\": \"%s\"\n\t}", token_type(t), t->type, text);
 
 		if (i != l->numTokens-1)
 			fprintf(out, ",");
@@ -459,16 +443,21 @@ int lexer_run(Lexer *l)
 	if (l->tokens == NULL)
 		lexer_abort(l, STOP_BAD_FILE, "Failed to allocate token array\n");
 
-	while (lexer_good(l))
+	while (l->stop == STOP_NONE)
 	{
 		lexer_get_token(l, &l->tokens[l->numTokens]);
 
-		if (!lexer_good(l))
+		if (l->tokens[l->numTokens].type == TOKEN_EOF)
+		{
+			l->numTokens++;
 			break;
-
+		}
+		
+		// Overwrite this non-token next time around
 		if (l->tokens[l->numTokens].type != TOKEN_NONE)
 			l->numTokens++;
 
+		// Grow the token array
 		if (l->numTokens == l->maxTokens)
 		{
 			l->tokens = realloc(l->tokens, TOKEN_CHUNK_ALLOC_SIZE * sizeof(Token) * ((l->numTokens / TOKEN_CHUNK_ALLOC_SIZE) + 1));
@@ -476,7 +465,7 @@ int lexer_run(Lexer *l)
 		}
 	}
 
-	if (l->stop != STOP_NONE && l->stop != STOP_EOF)
+	if (l->stop != STOP_NONE)
 	{
 		lexer_print_error(l);
 		return EXIT_FAILURE;
