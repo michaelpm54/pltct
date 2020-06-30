@@ -10,3 +10,7 @@ WHILE nums > 0 REPEAT
 	LET b = c
 	LET nums = nums - 1
 ENDWHILE
+
+IF a > 2 THEN
+	PRINT "a > 2"
+ENDIF

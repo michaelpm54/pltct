@@ -52,6 +52,11 @@ private:
 			case TOKEN_WHILE:
 			case TOKEN_ENDWHILE:
 			case TOKEN_REPEAT:
+			case TOKEN_IF:
+			case TOKEN_THEN:
+			case TOKEN_ENDIF:
+			case TOKEN_LABEL:
+			case TOKEN_GOTO:
 				return "Keyword";
 			case TOKEN_IDENTIFIER:
 				return "Identifier";

@@ -28,16 +28,22 @@ const char * const kKeywords[] =
 	"PRINT",
 	"INPUT",
 	"REPEAT",
+	"IF",
+	"THEN",
+	"ENDIF",
+	"LABEL",
+	"GOTO",
 };
 
 #define COUNT_OF(x) ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
-bool is_keyword(std::string_view str)
+bool is_keyword(std::string_view str, int &keywordId)
 {
 	for (int i = 0; i < COUNT_OF(kKeywords); i++)
 	{
 		if (str == std::string(kKeywords[i]))
 		{
+			keywordId = i;
 			return true;
 		}
 	}
@@ -177,20 +183,24 @@ Token Lexer::get_token()
 
 		const int size = m_pos - startPos;
 		const auto text = m_input.substr(startPos, size);
-		if (is_keyword(text))
+		int keywordId = -1;
+		if (is_keyword(text, keywordId))
 		{
-			if (text == "PRINT")
-				token.type = TOKEN_PRINT;
-			else if (text == "WHILE")
-				token.type = TOKEN_WHILE;
-			else if (text == "ENDWHILE")
-				token.type = TOKEN_ENDWHILE;
-			else if (text == "LET")
-				token.type = TOKEN_LET;
-			else if (text == "INPUT")
-				token.type = TOKEN_INPUT;
-			else if (text == "REPEAT")
-				token.type = TOKEN_REPEAT;
+			const TokenType kKeywordIds[] =
+			{
+				TOKEN_WHILE,
+				TOKEN_ENDWHILE,
+				TOKEN_LET,
+				TOKEN_PRINT,
+				TOKEN_INPUT,
+				TOKEN_REPEAT,
+				TOKEN_IF,
+				TOKEN_THEN,
+				TOKEN_ENDIF,
+				TOKEN_LABEL,
+				TOKEN_GOTO,
+			};
+			token.type = kKeywordIds[keywordId];
 		}
 		else
 			token.type = TOKEN_IDENTIFIER;
@@ -222,6 +232,14 @@ Token Lexer::get_token()
 		else
 			token.type = TOKEN_ASSIGN;
 		advance();
+	}
+	else if (m_c == '!')
+	{
+		if (peek() == '=')
+		{
+			token.type = TOKEN_NOT_EQUAL;
+			advance();
+		}
 	}
 	else if (m_c == '>')
 	{
@@ -262,6 +280,16 @@ Token Lexer::get_token()
 	else if (m_c == '#')
 	{
 		do advance(); while (m_c != '\n');
+	}
+	else if (m_c == '*')
+	{
+		token.type = TOKEN_MULTIPLY;
+		advance();
+	}
+	else if (m_c == '/')
+	{
+		token.type = TOKEN_DIVIDE;
+		advance();
 	}
 	else
 	{

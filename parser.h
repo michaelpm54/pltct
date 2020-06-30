@@ -26,14 +26,23 @@ private:
 	void g_newline();
 	void g_string();
 	void g_identifier();
+	void g_comparison();
+	void g_term();
+	void g_unary();
+	void g_primary();
 
 	// Operators
 	void g_assign();
+	void g_comparison_operator();
 
 	// Keywords
 	void g_print();
 	void g_input();
 	void g_let();
+	void g_if();
+	void g_then();
+	void g_while();
+	void g_repeat();
 
 private:
 	std::vector<Token> m_tokens;
