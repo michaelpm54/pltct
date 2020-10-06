@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.15.6)
 
-project(PCC)
+project(pltct)
 
 set(SOURCES
 	src/main.cpp
@@ -11,9 +11,9 @@ set(SOURCES
 	src/token.h
 )
 
-add_executable(pcc ${SOURCES})
+add_executable(pltct ${SOURCES})
 set_target_properties(
-	pcc
+	pltct
 	PROPERTIES
 	CXX_STANDARD 20
 	CXX_STANDARD_REQUIRED ON
